@@ -1,13 +1,18 @@
 package com.thebrandonhoward.websockits.infrastructure.api.websocket.listeners;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thebrandonhoward.websockits.infrastructure.api.websocket.client.GraphQLWebSocketClient;
 import com.thebrandonhoward.websockits.infrastructure.api.websocket.events.WebSocketDataSyncEvent;
+import com.thebrandonhoward.websockits.infrastructure.api.websocket.events.WebSocketProcessMessageEvent;
 import com.thebrandonhoward.websockits.infrastructure.api.websocket.events.WebSocketStartEvent;
 import com.thebrandonhoward.websockits.infrastructure.api.websocket.events.WebSocketStopEvent;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import reactor.core.Disposable;
@@ -18,6 +23,10 @@ import java.util.Map;
 
 @Component
 public class WebSocketEventListener {
+    @Autowired
+    public ApplicationEventPublisher applicationEventPublisher;
+    @Autowired
+    public ObjectMapper objectMapper;
 
     /*
     http://localhost:8080/graphiql?path=/graphql
@@ -62,7 +71,17 @@ public class WebSocketEventListener {
 //                        })
 //                        .subscribeToGraphQL(subscriptionUrl, subscriptionQuery, variables, "graphql-transport-ws")
                         .subscribe(
-                                data -> logger.info("Received: {}", data),
+                                data -> {
+                                    logger.info("Received: {}", data);
+
+                                    try {
+                                        applicationEventPublisher.publishEvent(
+                                                new WebSocketProcessMessageEvent(
+                                                        objectMapper.writeValueAsString(data)));
+                                    } catch (JsonProcessingException e) {
+                                        logger.error("Error while parsing data", e);
+                                    }
+                                },
                                 error -> logger.error("Error: {}", error.getMessage(), error),
                                 () -> logger.info("Subscription completed")
                         );
@@ -83,6 +102,19 @@ public class WebSocketEventListener {
             throw new RuntimeException(e);
         }
         logger.info("WebSocketDataSyncEvent Complete");
+    }
+
+    @EventListener
+    public void handleWebSocketProcessMessageEvent(WebSocketProcessMessageEvent event) {
+        logger.info("Received WebSocketProcessMessageEvent...");
+        try {
+            logger.info("Received WebSocketProcessMessageEvent: {}", event.getSource());
+            Thread.sleep(Duration.ofMinutes(1));
+        }
+        catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        logger.info("WebSocketProcessMessageEvent Complete");
     }
 
     @EventListener

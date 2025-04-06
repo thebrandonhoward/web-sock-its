@@ -3,8 +3,10 @@ package com.thebrandonhoward.websockits.infrastructure.api.websocket.client;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thebrandonhoward.websockits.infrastructure.api.websocket.events.WebSocketProcessMessageEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.graphql.client.ClientResponseField;
 import org.springframework.graphql.client.WebGraphQlClient;
@@ -53,12 +55,16 @@ public class GraphQLWebSocketClient {
 
                     try {
                         return objectMapper.writeValueAsString(response.getData());
-                    } catch (JsonProcessingException e) {
+                    }
+                    catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
                     }
                     //return field.toEntity(String.class);
                 })
-                .retryWhen(Retry.fixedDelay(Long.MAX_VALUE, Duration.ofMinutes(2)));
+                .retryWhen(Retry.fixedDelay(Long.MAX_VALUE, Duration.ofMinutes(2)))
+                .onErrorContinue((e, item) -> {
+                    log.error("Error occurred on item: {} with {}", item, e.getMessage(), e);
+                });
     }
 
     public Flux<JsonNode> subscribeToGraphQL(String url, String subscriptionQuery, Map<String, Object> variables, String protocol) {
